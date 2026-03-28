@@ -6,9 +6,7 @@
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Termux-orange?style=flat-square" alt="Platform">
 </p>
 
-**Asistente técnico en terminal con acceso a LLMs a través de OpenRouter o DeepSeek.**
-
-Desarrollado por [Mike](https://github.com/MikeUchiha122)
+**Interfaz de chat CLI que conecta con LLMs a través de OpenRouter o DeepSeek.**
 
 ---
 
