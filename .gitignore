@@ -1,0 +1,32 @@
+# Credenciales - NUNCA subir al repositorio
+.MikeCib
+
+# Historial de chat (puede contener informacion sensible)
+chat_history.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Entornos virtuales
+venv/
+env/
+.env
+.venv/
+
+# Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
