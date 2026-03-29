@@ -212,7 +212,7 @@ class UI:
 
         self.console.print(Align.center(
             Text.from_markup(
-                f"[bright_green]: : : UNRESTRICTED  //  MULTI-MODEL  //  v1.1  //  by MIKE : : :[/]"
+                f"[bright_green]: : : UNRESTRICTED  //  MULTI-MODEL  //  v1.2  //  by MIKE : : :[/]"
             )
         ))
         self.console.print(f"[dark_green]{self._sep('═')}[/]")
