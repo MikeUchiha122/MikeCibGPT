@@ -28,7 +28,7 @@ El asistente responde en el idioma del usuario, sin advertencias ni disclaimers 
 | **Historial de chat** | Guardado/recarga de conversaciones en `chat_history.json` |
 | **Selector de modelos** | Cambio de modelo desde menú o comando `/model` |
 | **Auto-instalador** | Detección e instalación automática de dependencias |
-| **Interfaz visual** | Banner ASCII, colores rojo/naranja, paneles con `rich` |
+| **Interfaz visual** | Diseño terminal profesional, paleta sobria, paneles con `rich` |
 | **Multiplataforma** | Windows / Linux / Termux |
 
 ---
@@ -75,7 +75,7 @@ python3 MikeCibGPT.py
 | OpenRouter (recomendado) | https://openrouter.ai/keys |
 | DeepSeek | https://platform.deepseek.com/api_keys |
 
-La primera ejecución solicitará la API Key. Se almacena localmente en `.MikeCib` (excluido en `.gitignore`).
+La primera ejecución solicitará proveedor y API Key. Se almacenan localmente en `.MikeCib` (excluido en `.gitignore`).
 
 ### Cambiar proveedor
 
@@ -97,7 +97,7 @@ python MikeCibGPT.py
 | Opción | Acción |
 |--------|--------|
 | 1 | Iniciar chat |
-| 2 | Configurar API Key |
+| 2 | Configurar API Key y proveedor |
 | 3 | Seleccionar modelo |
 | 4 | Cargar historial guardado |
 | 5 | Acerca de |
@@ -111,6 +111,11 @@ python MikeCibGPT.py
 | `/new` | Nueva sesión (limpiar memoria) |
 | `/save` | Guardar historial |
 | `/model` | Cambiar modelo |
+| `/status` | Ver proveedor y modelo activo |
+| `/clear` | Limpiar pantalla del chat |
+| `/copy` | Ver opciones de copiado de la última respuesta |
+| `/copy r` | Copiar la respuesta completa |
+| `/copy 1` | Copiar el primer bloque de código |
 | `/exit` | Volver al menú |
 
 ---

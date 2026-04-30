@@ -1,6 +1,9 @@
 #!/bin/bash
 
 # MikeCibGPT Installer para Linux y Termux
+export LC_ALL="${LC_ALL:-C.UTF-8}"
+export LANG="${LANG:-C.UTF-8}"
+export PYTHONUTF8=1
 
 echo "======================================"
 echo "    MikeCibGPT Installer Script"
@@ -50,5 +53,5 @@ echo "Para ejecutar MikeCibGPT:"
 echo ""
 echo "  python3 MikeCibGPT.py"
 echo ""
-echo "Obtén tu API Key gratis en: https://openrouter.ai/keys"
+echo "Obten tu API Key gratis en: https://openrouter.ai/keys"
 echo "======================================"

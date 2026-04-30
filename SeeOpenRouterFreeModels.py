@@ -18,50 +18,63 @@ except ImportError:
     print("[!] Falta el paquete 'python-dotenv'. Instala con: pip install python-dotenv")
     sys.exit(1)
 
-# Cargar API Key desde .MikeCib (mismo directorio que este script)
-ENV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".MikeCib")
-load_dotenv(dotenv_path=ENV_FILE)
-API_KEY = os.getenv("MikeCibGPT-API", "")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ENV_FILE = os.path.join(BASE_DIR, ".MikeCib")
+API_KEY_NAME = "MikeCibGPT-API"
+OPENROUTER_API_KEY_NAME = "MikeCibGPT-API-OPENROUTER"
+MODELS_URL = "https://openrouter.ai/api/v1/models"
 
-if not API_KEY:
-    print("[!] API Key no encontrada en .MikeCib")
-    print("    Ejecuta MikeCibGPT.py primero para configurar tu clave.")
-    sys.exit(1)
 
-URL = "https://openrouter.ai/api/v1/models"
-headers = {"Authorization": f"Bearer {API_KEY}"}
+def is_free_model(model: dict) -> bool:
+    model_id = model.get("id", "")
+    pricing = model.get("pricing", {})
 
-print("[*] Consultando modelos gratuitos en OpenRouter...\n")
-
-try:
-    response = requests.get(URL, headers=headers, timeout=15)
-    response.raise_for_status()
-    data = response.json().get("data", [])
-except requests.RequestException as e:
-    print(f"[!] Error de conexion: {e}")
-    sys.exit(1)
-except Exception as e:
-    print(f"[!] Error inesperado: {e}")
-    sys.exit(1)
-
-free_models = []
-
-for m in data:
-    model_id = m.get("id", "")
-    pricing = m.get("pricing", {})
-
-    is_free_suffix = model_id.endswith(":free")
-    is_free_pricing = (
+    return model_id.endswith(":free") or (
         str(pricing.get("prompt", "1")) == "0" and
         str(pricing.get("completion", "1")) == "0"
     )
 
-    if is_free_suffix or is_free_pricing:
-        free_models.append(model_id)
 
-if not free_models:
-    print("[!] No se encontraron modelos gratuitos.")
-else:
+def load_api_key() -> str:
+    load_dotenv(dotenv_path=ENV_FILE)
+    return os.getenv(OPENROUTER_API_KEY_NAME) or os.getenv(API_KEY_NAME, "")
+
+
+def fetch_models(api_key: str) -> list:
+    headers = {"Authorization": f"Bearer {api_key}"}
+    response = requests.get(MODELS_URL, headers=headers, timeout=15)
+    response.raise_for_status()
+    return response.json().get("data", [])
+
+
+def main():
+    api_key = load_api_key()
+    if not api_key:
+        print("[!] API Key no encontrada en .MikeCib")
+        print("    Ejecuta MikeCibGPT.py primero para configurar tu clave.")
+        sys.exit(1)
+
+    print("[*] Consultando modelos gratuitos en OpenRouter...\n")
+
+    try:
+        data = fetch_models(api_key)
+    except requests.RequestException as e:
+        print(f"[!] Error de conexion: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"[!] Error inesperado: {e}")
+        sys.exit(1)
+
+    free_models = [m.get("id", "") for m in data if is_free_model(m)]
+
+    if not free_models:
+        print("[!] No se encontraron modelos gratuitos.")
+        return
+
     print(f"[+] {len(free_models)} modelos gratuitos encontrados:\n")
     for model in sorted(free_models):
         print(f"  {model}")
+
+
+if __name__ == "__main__":
+    main()
