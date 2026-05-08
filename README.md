@@ -103,6 +103,8 @@ python MikeCibGPT.py
 | 5 | Acerca de |
 | 6 | Salir |
 
+Tambien puedes escribir atajos en el menu: `chat`, `api`, `modelo`, `historial`, `acerca` o `salir`.
+
 ### Comandos del Chat
 
 | Comando | Descripción |
@@ -120,6 +122,8 @@ python MikeCibGPT.py
 | `/descargar txt nombre` | Guardar la última respuesta como `downloads/nombre.txt` |
 | `/exportar html` | Exportar la última respuesta como HTML |
 | `/exit` | Volver al menú |
+
+Tambien funcionan alias en español como `ayuda`, `guardar`, `modelo`, `copiar r`, `descargar md` y `salir`.
 
 Formatos soportados para descarga: `txt`, `md`, `html`, `json`, `csv`, `py`, `js`, `ts`, `css`, `xml`, `yaml`, `yml`, `sh`, `bat`, `ps1`, `sql`.
 
@@ -181,6 +185,7 @@ colorama>=0.4.6    # Colores ANSI
 pwinput>=1.0.3     # Input seguro
 python-dotenv>=1.0.0  # Variables de entorno
 requests>=2.28.0   # HTTP
+pyperclip>=1.8.2   # Copiar respuestas al portapapeles
 ```
 
 ---

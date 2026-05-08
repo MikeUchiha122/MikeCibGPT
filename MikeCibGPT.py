@@ -122,7 +122,7 @@ class Config:
     PROVIDER_KEY_NAME = "MikeCibGPT-PROVIDER"
     HISTORY_FILE = os.path.join(_BASE_DIR, "chat_history.json")
     DOWNLOADS_DIR = os.path.join(_BASE_DIR, "downloads")
-    REQUEST_TIMEOUT      = 60
+    REQUEST_TIMEOUT      = 45
     MAX_HISTORY_MESSAGES = 40
     CODE_THEME           = "monokai"
 
@@ -395,6 +395,18 @@ class UI:
             text.append(f" {label}", style=Config.Colors.TEXT_DIM)
         return self.panel(text, title="Comandos", border_style=Config.Colors.DIM, padding=(0, 1))
 
+    def quick_help_panel(self) -> Panel:
+        text = Text()
+        text.append("Escribe tu mensaje y presiona Enter.\n", style="white")
+        text.append("Usa ", style=Config.Colors.TEXT_DIM)
+        text.append("/help", style=f"bold {Config.Colors.BRIGHT}")
+        text.append(" para ver comandos, ", style=Config.Colors.TEXT_DIM)
+        text.append("/save", style=f"bold {Config.Colors.BRIGHT}")
+        text.append(" para guardar y ", style=Config.Colors.TEXT_DIM)
+        text.append("/exit", style=f"bold {Config.Colors.BRIGHT}")
+        text.append(" para volver al menu.", style=Config.Colors.TEXT_DIM)
+        return self.panel(text, title="Guia rapida", border_style=Config.Colors.DIM, padding=(0, 1))
+
     def chat_status_panel(self, model: str) -> Panel:
         tier = Config.MODEL_TIERS.get(model, "")
         tc = self._tier_color(tier)
@@ -451,12 +463,12 @@ class UI:
         )
 
         menu_items = [
-            ("1", "Iniciar chat",       "Nueva sesion de conversacion"),
-            ("2", "API y proveedor",    "Credenciales y backend"),
-            ("3", "Seleccionar modelo", "Cambiar agente activo"),
-            ("4", "Cargar historial",   "Sesiones guardadas"),
-            ("5", "Acerca de",          "Info del sistema"),
-            ("6", "Salir",              "Cerrar conexion"),
+            ("1", "Iniciar chat",       "Tambien: chat, c"),
+            ("2", "API y proveedor",    "Tambien: api, config"),
+            ("3", "Seleccionar modelo", "Tambien: modelo, m"),
+            ("4", "Cargar historial",   "Tambien: historial, h"),
+            ("5", "Acerca de",          "Tambien: acerca"),
+            ("6", "Salir",              "Tambien: salir, q"),
         ]
         table = Table(show_header=False, box=None, padding=(0, 2), expand=True)
         table.add_column("OP", justify="right", style="bold bright_cyan", no_wrap=True)
@@ -581,14 +593,19 @@ class UI:
 
         # ── Fase 1: estado compacto; la respuesta completa se imprime una sola vez al final.
         def _render_streaming(content: str) -> Panel:
-            """Estado de procesamiento sin duplicar el contenido recibido."""
+            """Estado de procesamiento con vista previa corta."""
             nonlocal _frame
-            cursor = "●" if (_frame % 12) < _BLINK_ON else "○"
+            cursor = "*" if (_frame % 12) < _BLINK_ON else " "
+            preview = content.strip().replace("\n", " ")
+            preview = self._shorten(preview, max(self.W - 18, 40))
             t = Text()
             t.append(cursor + " ", style=Config.Colors.BRIGHT)
             t.append("Generando respuesta", style="white")
             t.append("  ")
             t.append(f"{len(content)} caracteres recibidos", style=Config.Colors.TEXT_DIM)
+            if preview:
+                t.append("\n")
+                t.append(preview, style=Config.Colors.TEXT_DIM)
             _frame += 1
             return self.panel(
                 t,
@@ -617,7 +634,7 @@ class UI:
         with Live(
             _render_streaming(""),
             console=self.console,
-            refresh_per_second=12,
+            refresh_per_second=6,
             transient=True,   # transient=True: borra el bloque al salir del Live
         ) as live:
             UI_PREFIX = MikeCibBrain._UI_PREFIX
@@ -964,15 +981,71 @@ class App:
     def chat_commands(self) -> list:
         return [
             ("/help", "ayuda"),
-            ("/new", "limpiar"),
+            ("/new", "nuevo chat"),
             ("/save", "guardar"),
             ("/model", "modelo"),
             ("/status", "estado"),
-            ("/clear", "limpiar pantalla"),
-            ("/copy", "copiar ultima respuesta"),
-            ("/download", "descargar ultima respuesta"),
+            ("/copy", "copiar"),
+            ("/download", "descargar"),
             ("/exit", "menu"),
         ]
+
+    def normalize_chat_command(self, prompt: str) -> str:
+        normalized = prompt.strip().lower()
+        prefix_aliases = {
+            "/copiar ": "/copy ",
+            "copiar ": "/copy ",
+            "/descargar ": "/download ",
+            "descargar ": "/download ",
+            "/exportar ": "/download ",
+            "exportar ": "/download ",
+        }
+        for source, target in prefix_aliases.items():
+            if normalized.startswith(source):
+                return target + normalized[len(source):]
+        aliases = {
+            "/ayuda": "/help",
+            "ayuda": "/help",
+            "/nuevo": "/new",
+            "nuevo": "/new",
+            "/limpiar": "/clear",
+            "limpiar": "/clear",
+            "/guardar": "/save",
+            "guardar": "/save",
+            "/modelo": "/model",
+            "modelo": "/model",
+            "/estado": "/status",
+            "estado": "/status",
+            "/copiar": "/copy",
+            "copiar": "/copy",
+            "/descargar": "/download",
+            "descargar": "/download",
+            "/menu": "/exit",
+            "menu": "/exit",
+            "salir": "/exit",
+        }
+        return aliases.get(normalized, normalized)
+
+    def normalize_menu_choice(self, choice: str) -> str:
+        normalized = choice.strip().lower()
+        aliases = {
+            "chat": "1",
+            "c": "1",
+            "iniciar": "1",
+            "api": "2",
+            "config": "2",
+            "configurar": "2",
+            "modelo": "3",
+            "m": "3",
+            "historial": "4",
+            "h": "4",
+            "acerca": "5",
+            "info": "5",
+            "salir": "6",
+            "q": "6",
+            "exit": "6",
+        }
+        return aliases.get(normalized, normalized)
 
     def redraw_chat_shell(self):
         if not self.brain:
@@ -980,6 +1053,7 @@ class App:
         self.ui.banner(self.brain.model)
         self.ui.console.print(self.ui.chat_status_panel(self.brain.model))
         self.ui.console.print(self.ui.command_bar(self.chat_commands()))
+        self.ui.console.print(self.ui.quick_help_panel())
 
     def setup(self) -> bool:
         load_dotenv(dotenv_path=Config.ENV_FILE)
@@ -1002,7 +1076,6 @@ class App:
             with self.ui.console.status("[bold bright_cyan]Verificando conexion...[/]"):
                 self.brain = MikeCibBrain(key, self.ui)
                 self.brain.client.models.list()
-                time.sleep(1)
             return True
         except Exception as e:
             self.ui.show_msg("AUTH ERROR", f"Verificacion fallida: {e}", "red")
@@ -1030,7 +1103,6 @@ class App:
             return False
         if not key.startswith("sk-") or len(key) < 20:
             self.ui.show_msg("ERROR", "Formato invalido. Debe comenzar con 'sk-' y tener al menos 20 caracteres.", "red")
-            time.sleep(2)
             return False
 
         set_key(Config.ENV_FILE, Config.API_KEY_NAME, key)
@@ -1045,7 +1117,6 @@ class App:
         new_model = self.ui.select_model_menu(self.brain.model)
         if new_model != self.brain.model:
             self.brain.set_model(new_model)
-            time.sleep(1)
 
     def load_history_menu(self):
         if not self.brain:
@@ -1053,7 +1124,6 @@ class App:
         sessions = self.brain.history_manager.list_sessions()
         if not sessions:
             self.ui.show_msg("HISTORIAL", "No hay sesiones guardadas.", "yellow")
-            time.sleep(1)
             return
 
         self.ui.banner(self.brain.model)
@@ -1065,7 +1135,6 @@ class App:
                 session_name = sessions[idx]["name"] if isinstance(sessions[idx], dict) else sessions[idx]
                 if self.brain.load_history(session_name):
                     self.ui.show_msg("SESION CARGADA", f"[bright_cyan]{session_name}[/]", "bright_green")
-                    time.sleep(1)
 
     def run_chat(self):
         if not self.brain:
@@ -1075,32 +1144,33 @@ class App:
         last_response = ""
         while True:
             try:
-                prompt = self.ui.get_input("YOU")
+                prompt = self.ui.get_input("Mensaje")
                 if not prompt.strip():
                     continue
+                command = self.normalize_chat_command(prompt)
 
-                if prompt.lower() == "/exit":
+                if command == "/exit":
                     return
-                if prompt.lower() == "/new":
+                if command == "/new":
                     self.brain.reset()
                     self.redraw_chat_shell()
                     self.ui.show_msg("RESET", "Memoria borrada. Nueva sesion iniciada.", "bright_green")
                     continue
-                if prompt.lower() == "/save":
+                if command == "/save":
                     self.brain.save_history()
                     continue
-                if prompt.lower() == "/model":
+                if command == "/model":
                     self.select_model()
                     self.redraw_chat_shell()
                     self.ui.show_msg("AGENTE", f"Modelo activo: [bright_cyan]{self.brain.model}[/]", "bright_green")
                     continue
-                if prompt.lower() == "/clear":
+                if command == "/clear":
                     self.redraw_chat_shell()
                     continue
-                if prompt.lower() == "/status":
+                if command == "/status":
                     self.ui.console.print(self.ui.chat_status_panel(self.brain.model))
                     continue
-                if prompt.lower() == "/help":
+                if command == "/help":
                     self.ui.show_msg(
                         "COMANDOS",
                         "[bright_cyan]/new[/]    — Borrar memoria\n"
@@ -1122,7 +1192,7 @@ class App:
                         "bright_green",
                     )
                     continue
-                if prompt.lower().startswith("/copy"):
+                if command.startswith("/copy"):
                     if last_response:
                         parts = prompt.split(maxsplit=1)
                         if len(parts) == 1:
@@ -1134,9 +1204,9 @@ class App:
                     continue
 
                 if (
-                    prompt.lower().startswith("/download") or
-                    prompt.lower().startswith("/descargar") or
-                    prompt.lower().startswith("/exportar")
+                    command.startswith("/download") or
+                    command.startswith("/descargar") or
+                    command.startswith("/exportar")
                 ):
                     if last_response:
                         parts = prompt.split(maxsplit=2)
@@ -1145,6 +1215,10 @@ class App:
                         self.ui.download_response(last_response, fmt, filename)
                     else:
                         self.ui.show_msg("DESCARGA", "No hay respuesta previa.", "dark_green")
+                    continue
+
+                if command.startswith("/"):
+                    self.ui.show_msg("COMANDO", "Comando no reconocido. Usa [bright_cyan]/help[/] para ver opciones.", "yellow")
                     continue
 
                 # Respuesta del agente con barra lateral
@@ -1169,7 +1243,7 @@ class App:
         while True:
             self.ui.banner(self.brain.model if self.brain else "")
             self.ui.main_menu(self.brain.model if self.brain else "")
-            choice = self.ui.get_input("MENU")
+            choice = self.normalize_menu_choice(self.ui.get_input("Opcion"))
 
             if choice == "1":
                 self.run_chat()
@@ -1183,12 +1257,10 @@ class App:
                 self.about()
             elif choice == "6":
                 self.ui.console.print("[bold bright_cyan]Cerrando conexion...[/]")
-                time.sleep(0.5)
                 self.ui.clear()
                 sys.exit(0)
             else:
-                self.ui.console.print("[bright_black]Comando invalido[/]")
-                time.sleep(0.5)
+                self.ui.show_msg("MENU", "Opcion no reconocida. Usa 1-6, chat, api, modelo, historial o salir.", "yellow")
 
 
 if __name__ == "__main__":
