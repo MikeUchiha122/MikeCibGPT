@@ -7,6 +7,7 @@ import subprocess  # nosec B404 - usado solo para pip install con lista hardcode
 import importlib
 import site
 import re
+import html
 from datetime import datetime
 from typing import Generator
 
@@ -71,6 +72,7 @@ import pyperclip
 
 ASSISTANT_PREFIX_RE = re.compile(r"^\s*\[MikeCibGPT\]:?\s*", re.IGNORECASE)
 CODE_BLOCK_RE = re.compile(r"```(?:\w+)?\n?(.*?)```", re.DOTALL)
+CODE_BLOCK_WITH_LANG_RE = re.compile(r"```(?P<lang>[\w.+#-]+)?\s*\n?(?P<code>.*?)```", re.DOTALL)
 
 
 # --- Configuration ---
@@ -119,6 +121,7 @@ class Config:
     API_KEY_NAME = "MikeCibGPT-API"
     PROVIDER_KEY_NAME = "MikeCibGPT-PROVIDER"
     HISTORY_FILE = os.path.join(_BASE_DIR, "chat_history.json")
+    DOWNLOADS_DIR = os.path.join(_BASE_DIR, "downloads")
     REQUEST_TIMEOUT      = 60
     MAX_HISTORY_MESSAGES = 40
     CODE_THEME           = "monokai"
@@ -199,10 +202,115 @@ class UI:
     def _extract_code_blocks(self, text: str) -> list:
         return [block.strip() for block in CODE_BLOCK_RE.findall(text) if block.strip()]
 
+    def _extract_code_blocks_with_lang(self, text: str) -> list:
+        blocks = []
+        for match in CODE_BLOCK_WITH_LANG_RE.finditer(text):
+            code = match.group("code").strip()
+            if not code:
+                continue
+            blocks.append({
+                "lang": (match.group("lang") or "").strip().lower(),
+                "code": code,
+            })
+        return blocks
+
     def _shorten(self, text: str, max_len: int) -> str:
         if len(text) <= max_len:
             return text
         return text[:max(max_len - 3, 1)] + "..."
+
+    def _safe_filename_part(self, value: str, fallback: str = "respuesta") -> str:
+        cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", value.strip()).strip(".-")
+        return cleaned[:60] or fallback
+
+    def _response_for_download_format(self, full_response: str, fmt: str) -> str:
+        fmt = fmt.lower().lstrip(".")
+        code_formats = {
+            "py": {"py", "python"},
+            "js": {"js", "javascript"},
+            "ts": {"ts", "typescript"},
+            "html": {"html"},
+            "css": {"css"},
+            "json": {"json"},
+            "csv": {"csv"},
+            "xml": {"xml"},
+            "yaml": {"yaml", "yml"},
+            "yml": {"yaml", "yml"},
+            "sh": {"sh", "bash", "shell"},
+            "bat": {"bat", "batch"},
+            "ps1": {"ps1", "powershell"},
+        }
+        blocks = self._extract_code_blocks_with_lang(full_response)
+        for block in blocks:
+            if block["lang"] in code_formats.get(fmt, set()):
+                return block["code"]
+
+        if fmt == "txt":
+            return full_response
+        if fmt == "md":
+            return full_response
+        if fmt == "html":
+            return (
+                "<!doctype html>\n"
+                "<html lang=\"es\">\n"
+                "<head><meta charset=\"utf-8\"><title>Respuesta MikeCibGPT</title></head>\n"
+                "<body><pre>"
+                + html.escape(full_response)
+                + "</pre></body>\n</html>\n"
+            )
+        if fmt == "json":
+            return json.dumps(
+                {
+                    "created_at": datetime.now().isoformat(timespec="seconds"),
+                    "response": full_response,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        if fmt == "csv":
+            escaped = full_response.replace('"', '""')
+            return f"created_at,response\n{datetime.now().isoformat(timespec='seconds')},\"{escaped}\"\n"
+        return full_response
+
+    def download_response(self, full_response: str, fmt: str = "md", filename: str = None) -> str:
+        if not full_response.strip():
+            self.show_msg("DESCARGA", "No hay respuesta para descargar.", "dark_green")
+            return ""
+
+        fmt = (fmt or "md").lower().lstrip(".")
+        fmt_aliases = {
+            "markdown": "md",
+            "texto": "txt",
+            "text": "txt",
+            "htm": "html",
+            "powershell": "ps1",
+            "python": "py",
+            "javascript": "js",
+            "typescript": "ts",
+        }
+        fmt = fmt_aliases.get(fmt, fmt)
+        allowed = {
+            "txt", "md", "html", "json", "csv", "py", "js", "ts", "css",
+            "xml", "yaml", "yml", "sh", "bat", "ps1", "sql",
+        }
+        if fmt not in allowed:
+            self.show_msg("ERROR", "Formato no soportado. Usa txt, md, html, json, csv, py, js, ts, css, xml, yaml, sh, bat, ps1 o sql.", "red")
+            return ""
+
+        os.makedirs(Config.DOWNLOADS_DIR, exist_ok=True)
+        if filename:
+            base = self._safe_filename_part(os.path.splitext(filename)[0])
+        else:
+            base = f"respuesta-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        path = os.path.join(Config.DOWNLOADS_DIR, f"{base}.{fmt}")
+        content = self._response_for_download_format(full_response, fmt)
+
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            f.write(content)
+
+        self.show_msg("DESCARGADO", f"Archivo guardado:\n[bright_cyan]{path}[/]", "bright_green")
+        return path
+
 
     def _tier_color(self, tier: str) -> str:
         return {
@@ -862,6 +970,7 @@ class App:
             ("/status", "estado"),
             ("/clear", "limpiar pantalla"),
             ("/copy", "copiar ultima respuesta"),
+            ("/download", "descargar ultima respuesta"),
             ("/exit", "menu"),
         ]
 
@@ -1005,6 +1114,13 @@ class App:
                         "[bright_cyan]/exit[/]   — Volver al menu",
                         "bright_green",
                     )
+                    self.ui.show_msg(
+                        "DESCARGA",
+                        "[bright_cyan]/download md[/] - Descargar la ultima respuesta\n"
+                        "[bright_cyan]/descargar py nombre[/] - Guardar como downloads/nombre.py\n"
+                        "[bright_cyan]/exportar html[/] - Guardar como HTML",
+                        "bright_green",
+                    )
                     continue
                 if prompt.lower().startswith("/copy"):
                     if last_response:
@@ -1015,6 +1131,20 @@ class App:
                             self.ui.copy_menu_direct(last_response, parts[1].strip().lower())
                     else:
                         self.ui.show_msg("COPY", "No hay respuesta previa.", "dark_green")
+                    continue
+
+                if (
+                    prompt.lower().startswith("/download") or
+                    prompt.lower().startswith("/descargar") or
+                    prompt.lower().startswith("/exportar")
+                ):
+                    if last_response:
+                        parts = prompt.split(maxsplit=2)
+                        fmt = parts[1] if len(parts) >= 2 else "md"
+                        filename = parts[2] if len(parts) >= 3 else None
+                        self.ui.download_response(last_response, fmt, filename)
+                    else:
+                        self.ui.show_msg("DESCARGA", "No hay respuesta previa.", "dark_green")
                     continue
 
                 # Respuesta del agente con barra lateral

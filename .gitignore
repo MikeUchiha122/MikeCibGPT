@@ -4,6 +4,9 @@
 # Historial de chat (puede contener informacion sensible)
 chat_history.json
 
+# Respuestas descargadas
+downloads/
+
 # Python
 __pycache__/
 *.py[cod]

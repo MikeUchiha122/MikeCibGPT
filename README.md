@@ -116,7 +116,12 @@ python MikeCibGPT.py
 | `/copy` | Ver opciones de copiado de la última respuesta |
 | `/copy r` | Copiar la respuesta completa |
 | `/copy 1` | Copiar el primer bloque de código |
+| `/download md` | Descargar la última respuesta en `downloads/` |
+| `/descargar txt nombre` | Guardar la última respuesta como `downloads/nombre.txt` |
+| `/exportar html` | Exportar la última respuesta como HTML |
 | `/exit` | Volver al menú |
+
+Formatos soportados para descarga: `txt`, `md`, `html`, `json`, `csv`, `py`, `js`, `ts`, `css`, `xml`, `yaml`, `yml`, `sh`, `bat`, `ps1`, `sql`.
 
 ---
 
